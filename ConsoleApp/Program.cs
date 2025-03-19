@@ -5,30 +5,43 @@ namespace ConsoleApp
 {
     internal class Program
     {
-        static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
-            var client = new HttpClient
-            {
-                Timeout = TimeSpan.FromMinutes(60), // Increase as needed
-                BaseAddress = new Uri("http://localhost:11434")
-            };
             var builder = Kernel.CreateBuilder();
-            builder.AddOllamaChatCompletion("PHI4:Latest",  httpClient: client);
+            builder.AddOllamaChatCompletion("PHI4:Latest", new Uri("http://localhost:11434"));
 
             var kernel = builder.Build();
             var chatService = kernel.GetRequiredService<IChatCompletionService>();
 
             var history = new ChatHistory();
             history.AddSystemMessage("You are a helpful assistant.");
-            string userMessage = "why the sky is blue, present detail description in around 3000 words";
-            history.AddUserMessage(userMessage);
+            string? userInput;
+            do
+            {
+                // Collect user input
+                Console.Write("User: ");
+                userInput = Console.ReadLine();
+                if(string.IsNullOrEmpty(userInput))
+                {
+                    break;
+                }
+                // Add user input
+                history.AddUserMessage(userInput);
 
-            var response = chatService.GetChatMessageContentAsync(history).GetAwaiter().GetResult();
 
-            Console.WriteLine($"Bot: {response.Content}");
+                Console.Write("Bot: ");
+                string botResponce = "";
+                await foreach (var response in chatService.GetStreamingChatMessageContentsAsync(history))
+                {
+                    Console.Write(response.Content);
+                    botResponce += response.Content;
+                }
+                Console.WriteLine();
+                history.AddAssistantMessage(botResponce ?? string.Empty);
 
-            history.AddMessage(response.Role, response.Content ?? string.Empty);
-
+            } while (true);
         }
-    }
+    };
 }
+
+
